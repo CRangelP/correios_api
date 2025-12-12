@@ -6,7 +6,7 @@ services:
     environment:
       - PORT=8087
       - API_KEYS=${API_KEYS:-dev-key-123}
-      - BROWSER_URL=ws://chrome:9222
+      - BROWSER_URL=ws://chrome:3000
     depends_on:
       - chrome
     networks:
@@ -39,13 +39,10 @@ services:
         - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
 
   chrome:
-    image: zenika/alpine-chrome:latest
-    command:
-      - --no-sandbox
-      - --disable-gpu
-      - --disable-dev-shm-usage
-      - --remote-debugging-address=0.0.0.0
-      - --remote-debugging-port=9222
+    image: browserless/chrome:latest
+    environment:
+      - CONNECTION_TIMEOUT=60000
+      - MAX_CONCURRENT_SESSIONS=10
     networks:
       - correios-network
     deploy:

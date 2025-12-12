@@ -1,8 +1,11 @@
 package scraper
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +19,37 @@ type RodScraper struct {
 	browser *rod.Browser
 }
 
+func getWebSocketURL(baseURL string) (string, error) {
+	httpURL := strings.Replace(baseURL, "ws://", "http://", 1)
+	httpURL = strings.Replace(httpURL, "wss://", "https://", 1)
+	versionURL := httpURL + "/json/version"
+	
+	resp, err := http.Get(versionURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to get version info: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+	
+	var versionInfo struct {
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	
+	if err := json.Unmarshal(body, &versionInfo); err != nil {
+		return "", fmt.Errorf("failed to parse version info: %w", err)
+	}
+	
+	if versionInfo.WebSocketDebuggerURL == "" {
+		return "", fmt.Errorf("webSocketDebuggerUrl not found in response")
+	}
+	
+	return versionInfo.WebSocketDebuggerURL, nil
+}
+
 func NewRodScraper(browserURL string) (*RodScraper, error) {
 	var browser *rod.Browser
 	var err error
@@ -23,21 +57,27 @@ func NewRodScraper(browserURL string) (*RodScraper, error) {
 	if browserURL != "" {
 		log.Printf("Connecting to remote browser at: %s", browserURL)
 		
+		var wsURL string
 		maxRetries := 30
 		for i := 0; i < maxRetries; i++ {
-			browser = rod.New().ControlURL(browserURL)
-			err = browser.Connect()
+			wsURL, err = getWebSocketURL(browserURL)
 			if err == nil {
-				log.Printf("Connected to remote browser successfully")
+				log.Printf("Got WebSocket URL: %s", wsURL)
 				break
 			}
-			log.Printf("Attempt %d/%d: Failed to connect to browser: %v. Retrying in 2s...", i+1, maxRetries, err)
+			log.Printf("Attempt %d/%d: Failed to get WebSocket URL: %v. Retrying in 2s...", i+1, maxRetries, err)
 			time.Sleep(2 * time.Second)
 		}
 		
 		if err != nil {
-			return nil, fmt.Errorf("failed to connect to remote browser after %d attempts: %w", maxRetries, err)
+			return nil, fmt.Errorf("failed to get WebSocket URL after %d attempts: %w", maxRetries, err)
 		}
+		
+		browser = rod.New().ControlURL(wsURL)
+		if err = browser.Connect(); err != nil {
+			return nil, fmt.Errorf("failed to connect to browser: %w", err)
+		}
+		log.Printf("Connected to remote browser successfully")
 	} else {
 		path, found := launcher.LookPath()
 		if !found {
