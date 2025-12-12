@@ -36,22 +36,51 @@ cd correios_api
 docker-compose up -d
 ```
 
+### Docker Swarm
+
+```bash
+docker stack deploy -c docker-stack.yml correios
+```
+
 ### Local
 
 ```bash
 git clone https://github.com/CRangelP/correios_api.git
 cd correios_api/backend
+cp .env_example .env
+# Edite o arquivo .env com suas configurações
 go mod tidy
 go run ./cmd/api
 ```
 
 ## Configuração
 
+### Variáveis de Ambiente
+
 | Variável | Descrição | Default |
 |----------|-----------|---------|
 | `PORT` | Porta do servidor | `8087` |
 | `API_KEYS` | Chaves de API (separadas por vírgula) | `dev-key-123` |
 | `BROWSER_URL` | URL do Chrome remoto (opcional) | - |
+
+### Arquivo .env
+
+Copie o arquivo `.env_example` para `.env` e configure:
+
+```bash
+cp backend/.env_example backend/.env
+```
+
+```env
+# Server Configuration
+PORT=8087
+
+# API Keys (comma-separated for multiple keys)
+API_KEYS=sua-chave-secreta-aqui
+
+# Browser Configuration (optional - for remote Chrome)
+BROWSER_URL=
+```
 
 ## Endpoints
 
@@ -160,12 +189,15 @@ correios_api/
 │   │   └── domain/
 │   │       └── scraper/
 │   ├── docs/
+│   ├── .env_example
 │   ├── Dockerfile
 │   ├── go.mod
 │   └── go.sum
 ├── api/
 │   └── insomnia.json
 ├── docker-compose.yml
+├── docker-stack.yml
+├── .gitignore
 └── README.md
 ```
 

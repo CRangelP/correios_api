@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  api:
+    image: crangelp/correios_api:latest
+    ports:
+      - "8087:8087"
+    environment:
+      - PORT=8087
+      - API_KEYS=${API_KEYS:-dev-key-123}
+      - BROWSER_URL=ws://chrome:9222
+    depends_on:
+      - chrome
+    networks:
+      - correios-network
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  chrome:
+    image: chromedp/headless-shell:latest
+    command:
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --no-sandbox
+      - --disable-gpu
+      - --disable-dev-shm-usage
+    networks:
+      - correios-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+networks:
+  correios-network:
+    driver: overlay
