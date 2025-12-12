@@ -3,8 +3,6 @@ version: '3.8'
 services:
   api:
     image: crangelp/correios_api:latest
-    ports:
-      - "8087:8087"
     environment:
       - PORT=8087
       - API_KEYS=${API_KEYS:-dev-key-123}
@@ -13,6 +11,7 @@ services:
       - chrome
     networks:
       - correios-network
+      - traefik-public
     deploy:
       replicas: 2
       restart_policy:
@@ -27,6 +26,17 @@ services:
           memory: 512M
         reservations:
           memory: 256M
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik-public
+        - traefik.http.routers.correios-api.rule=Host(`correios.example.com`)
+        - traefik.http.routers.correios-api.entrypoints=websecure
+        - traefik.http.routers.correios-api.tls.certresolver=letsencrypt
+        - traefik.http.services.correios-api.loadbalancer.server.port=8087
+        - traefik.http.routers.correios-api-http.rule=Host(`correios.example.com`)
+        - traefik.http.routers.correios-api-http.entrypoints=web
+        - traefik.http.routers.correios-api-http.middlewares=https-redirect
+        - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
 
   chrome:
     image: chromedp/headless-shell:latest
@@ -51,3 +61,5 @@ services:
 networks:
   correios-network:
     driver: overlay
+  traefik-public:
+    external: true

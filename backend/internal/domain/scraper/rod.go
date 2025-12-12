@@ -18,15 +18,32 @@ type RodScraper struct {
 
 func NewRodScraper(browserURL string) (*RodScraper, error) {
 	var browser *rod.Browser
+	var err error
 
 	if browserURL != "" {
-		browser = rod.New().ControlURL(browserURL).MustConnect()
+		log.Printf("Connecting to remote browser at: %s", browserURL)
+		
+		maxRetries := 30
+		for i := 0; i < maxRetries; i++ {
+			browser = rod.New().ControlURL(browserURL)
+			err = browser.Connect()
+			if err == nil {
+				log.Printf("Connected to remote browser successfully")
+				break
+			}
+			log.Printf("Attempt %d/%d: Failed to connect to browser: %v. Retrying in 2s...", i+1, maxRetries, err)
+			time.Sleep(2 * time.Second)
+		}
+		
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to remote browser after %d attempts: %w", maxRetries, err)
+		}
 	} else {
 		path, found := launcher.LookPath()
 		if !found {
-			path = "/usr/bin/google-chrome"
+			path = "/usr/bin/chromium"
 		}
-		log.Printf("Using browser at: %s", path)
+		log.Printf("Using local browser at: %s", path)
 		u := launcher.New().Bin(path).Headless(true).NoSandbox(true).MustLaunch()
 		browser = rod.New().ControlURL(u).MustConnect()
 	}
