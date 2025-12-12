@@ -26,7 +26,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	rodScraper, err := scraper.NewRodScraper(cfg.BrowserURL)
+	rodScraper, err := scraper.NewRodScraper(cfg.BrowserURL, cfg.MaxConcurrency)
 	if err != nil {
 		log.Fatalf("Failed to initialize scraper: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -16,9 +17,13 @@ import (
 )
 
 type RodScraper struct {
-	browserURL string
-	localPath  string
-	isRemote   bool
+	browserURL     string
+	localPath      string
+	isRemote       bool
+	browser        *rod.Browser
+	browserMu      sync.Mutex
+	semaphore      chan struct{}
+	maxConcurrency int
 }
 
 func getWebSocketURL(baseURL string) (string, error) {
@@ -52,18 +57,35 @@ func getWebSocketURL(baseURL string) (string, error) {
 	return versionInfo.WebSocketDebuggerURL, nil
 }
 
-func NewRodScraper(browserURL string) (*RodScraper, error) {
+func NewRodScraper(browserURL string, maxConcurrency int) (*RodScraper, error) {
+	if maxConcurrency <= 0 {
+		maxConcurrency = 3
+	}
+
+	scraper := &RodScraper{
+		maxConcurrency: maxConcurrency,
+		semaphore:      make(chan struct{}, maxConcurrency),
+	}
+
 	if browserURL != "" {
-		log.Printf("Configured remote browser at: %s", browserURL)
-		return &RodScraper{browserURL: browserURL, isRemote: true}, nil
+		log.Printf("Configured remote browser at: %s (max concurrency: %d)", browserURL, maxConcurrency)
+		scraper.browserURL = browserURL
+		scraper.isRemote = true
+	} else {
+		path, found := launcher.LookPath()
+		if !found {
+			path = "/usr/bin/chromium"
+		}
+		log.Printf("Configured local browser at: %s (max concurrency: %d)", path, maxConcurrency)
+		scraper.localPath = path
+		scraper.isRemote = false
 	}
-	
-	path, found := launcher.LookPath()
-	if !found {
-		path = "/usr/bin/chromium"
+
+	if err := scraper.ensureBrowser(); err != nil {
+		return nil, fmt.Errorf("failed to initialize browser: %w", err)
 	}
-	log.Printf("Configured local browser at: %s", path)
-	return &RodScraper{localPath: path, isRemote: false}, nil
+
+	return scraper, nil
 }
 
 func (r *RodScraper) connectBrowser() (*rod.Browser, error) {
@@ -103,16 +125,36 @@ func (r *RodScraper) connectBrowser() (*rod.Browser, error) {
 	return browser, nil
 }
 
-func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
-	log.Printf("Starting tracking for CPF: %s", cpf)
+func (r *RodScraper) ensureBrowser() error {
+	r.browserMu.Lock()
+	defer r.browserMu.Unlock()
+
+	if r.browser != nil {
+		return nil
+	}
 
 	browser, err := r.connectBrowser()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to browser: %w", err)
+		return err
 	}
-	defer browser.Close()
+	r.browser = browser
+	return nil
+}
 
-	page := browser.MustPage()
+func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
+	r.semaphore <- struct{}{}
+	defer func() { <-r.semaphore }()
+
+	log.Printf("Starting tracking for CPF: %s", cpf)
+
+	if err := r.ensureBrowser(); err != nil {
+		return nil, fmt.Errorf("failed to ensure browser: %w", err)
+	}
+
+	r.browserMu.Lock()
+	page := r.browser.MustPage()
+	r.browserMu.Unlock()
+
 	page.MustSetUserAgent(&proto.NetworkSetUserAgentOverride{
 		UserAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 	})
@@ -125,8 +167,7 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 
 	page.Timeout(60 * time.Second)
 
-	err = page.Navigate("https://www.haga7digital.com.br/?page=rastreio")
-	if err != nil {
+	if err := page.Navigate("https://www.haga7digital.com.br/?page=rastreio"); err != nil {
 		return nil, fmt.Errorf("failed to navigate: %w", err)
 	}
 
@@ -292,5 +333,14 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 }
 
 func (r *RodScraper) Close() error {
+	r.browserMu.Lock()
+	defer r.browserMu.Unlock()
+
+	if r.browser != nil {
+		if err := r.browser.Close(); err != nil {
+			return fmt.Errorf("failed to close browser: %w", err)
+		}
+		r.browser = nil
+	}
 	return nil
 }

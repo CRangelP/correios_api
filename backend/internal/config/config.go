@@ -3,15 +3,17 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port       string
-	APIKeys    []string
-	BrowserURL string
+	Port           string
+	APIKeys        []string
+	BrowserURL     string
+	MaxConcurrency int
 }
 
 func Load() *Config {
@@ -32,9 +34,17 @@ func Load() *Config {
 
 	browserURL := os.Getenv("BROWSER_URL")
 
+	maxConcurrency := 3
+	if mc := os.Getenv("MAX_CONCURRENCY"); mc != "" {
+		if v, err := strconv.Atoi(mc); err == nil && v > 0 {
+			maxConcurrency = v
+		}
+	}
+
 	return &Config{
-		Port:       port,
-		APIKeys:    apiKeys,
-		BrowserURL: browserURL,
+		Port:           port,
+		APIKeys:        apiKeys,
+		BrowserURL:     browserURL,
+		MaxConcurrency: maxConcurrency,
 	}
 }
