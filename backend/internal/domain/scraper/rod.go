@@ -3,6 +3,7 @@ package scraper
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 		}
 	}()
 
-	page.Timeout(30 * time.Second)
+	page.Timeout(60 * time.Second)
 
 	err := page.Navigate("https://www.haga7digital.com.br/?page=rastreio")
 	if err != nil {
@@ -78,7 +79,7 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 	submitBtn.MustClick()
 
 	log.Println("Waiting for results...")
-	time.Sleep(5 * time.Second)
+	time.Sleep(8 * time.Second)
 
 	result := &TrackingResult{
 		CPF:       cpf,
@@ -86,31 +87,92 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 		Events:    []TrackingEvent{},
 	}
 
-	html, err := page.HTML()
+	page.MustWaitLoad()
+
+	pageText, err := page.Eval(`() => document.body.innerText`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get page HTML: %w", err)
+		return nil, fmt.Errorf("failed to get page text: %w", err)
 	}
 
-	log.Printf("Got HTML length: %d", len(html))
+	text := pageText.Value.String()
+	log.Printf("Got page text length: %d", len(text))
 
-	htmlLower := strings.ToLower(html)
-
-	if strings.Contains(htmlLower, "não encontrado") || strings.Contains(htmlLower, "not found") {
+	if strings.Contains(strings.ToLower(text), "não encontrado") || strings.Contains(strings.ToLower(text), "not found") {
 		result.Status = "não encontrado"
 		return result, nil
 	}
 
-	if strings.Contains(htmlLower, "entregue") {
-		result.Status = "entregue"
-	} else if strings.Contains(htmlLower, "em trânsito") || strings.Contains(htmlLower, "transito") {
-		result.Status = "em trânsito"
-	} else if strings.Contains(htmlLower, "postado") {
-		result.Status = "postado"
+	trackingCodeRegex := regexp.MustCompile(`([A-Z]{2}\d{9}[A-Z]{2})\s*-\s*(\w+)`)
+	if matches := trackingCodeRegex.FindStringSubmatch(text); len(matches) >= 2 {
+		result.TrackingCode = matches[1]
+		if len(matches) >= 3 {
+			result.TrackingCode = matches[1] + " - " + matches[2]
+		}
+	}
+
+	expectedDateRegex := regexp.MustCompile(`Data prevista:\s*(\d{2}/\d{2}/\d{4})`)
+	if matches := expectedDateRegex.FindStringSubmatch(text); len(matches) >= 2 {
+		result.ExpectedDate = matches[1]
+	}
+
+	lines := strings.Split(text, "\n")
+	var currentEvent TrackingEvent
+	dateTimeRegex := regexp.MustCompile(`(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})`)
+
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if strings.Contains(line, "Objeto em transferência") ||
+			strings.Contains(line, "Objeto postado") ||
+			strings.Contains(line, "Objeto entregue") ||
+			strings.Contains(line, "Etiqueta emitida") ||
+			strings.Contains(line, "Objeto saiu") ||
+			strings.Contains(line, "Objeto recebido") {
+			
+			if currentEvent.Description != "" {
+				result.Events = append(result.Events, currentEvent)
+			}
+			currentEvent = TrackingEvent{
+				Description: line,
+			}
+		} else if strings.HasPrefix(line, "Unidade de Tratamento") ||
+			strings.HasPrefix(line, "Unidade de Distribuição") ||
+			strings.HasPrefix(line, "Postado") {
+			currentEvent.LocationType = line
+		} else if dateTimeRegex.MatchString(line) {
+			currentEvent.Date = line
+		} else if len(line) > 2 && strings.Contains(line, ",") && !strings.Contains(line, "CORREIOS") && !strings.Contains(line, "HAGA") {
+			if i > 0 && (strings.HasPrefix(lines[i-1], "Unidade") || strings.HasPrefix(lines[i-1], "Postado")) {
+				currentEvent.Location = line
+			}
+		} else if regexp.MustCompile(`^[A-Z\s]+,[A-Z]{2}$`).MatchString(line) {
+			currentEvent.Location = line
+		}
+	}
+
+	if currentEvent.Description != "" {
+		result.Events = append(result.Events, currentEvent)
+	}
+
+	if len(result.Events) > 0 {
+		firstEvent := result.Events[0]
+		if strings.Contains(firstEvent.Description, "entregue") {
+			result.Status = "entregue"
+		} else if strings.Contains(firstEvent.Description, "transferência") {
+			result.Status = "em trânsito"
+		} else if strings.Contains(firstEvent.Description, "postado") {
+			result.Status = "postado"
+		} else {
+			result.Status = "em processamento"
+		}
 	} else {
 		result.Status = "dados obtidos"
 	}
 
-	log.Printf("Tracking complete. Status: %s", result.Status)
+	log.Printf("Tracking complete. Status: %s, Events: %d", result.Status, len(result.Events))
 	return result, nil
 }
 

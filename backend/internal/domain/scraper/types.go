@@ -3,16 +3,19 @@ package scraper
 import "time"
 
 type TrackingEvent struct {
-	Date        time.Time `json:"date"`
-	Location    string    `json:"location"`
-	Description string    `json:"description"`
+	Date        string `json:"date"`
+	Location    string `json:"location"`
+	LocationType string `json:"location_type"`
+	Description string `json:"description"`
 }
 
 type TrackingResult struct {
-	CPF       string          `json:"cpf"`
-	Status    string          `json:"status"`
-	Events    []TrackingEvent `json:"events"`
-	ScrapedAt time.Time       `json:"scraped_at"`
+	CPF          string          `json:"cpf"`
+	TrackingCode string          `json:"tracking_code"`
+	ExpectedDate string          `json:"expected_date"`
+	Status       string          `json:"status"`
+	Events       []TrackingEvent `json:"events"`
+	ScrapedAt    time.Time       `json:"scraped_at"`
 }
 
 type TrackRequest struct {
