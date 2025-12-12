@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8087:8087"
+    environment:
+      - PORT=8087
+      - API_KEYS=dev-key-123,prod-key-456
+      - BROWSER_URL=ws://chrome:9222
+    depends_on:
+      - chrome
+    networks:
+      - app-network
+
+  chrome:
+    image: chromedp/headless-shell:latest
+    ports:
+      - "9222:9222"
+    command:
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --no-sandbox
+      - --disable-gpu
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
