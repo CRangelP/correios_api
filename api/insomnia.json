@@ -1,0 +1,226 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2025-12-12T21:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_correios_api",
+      "parentId": null,
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "name": "Correios API",
+      "description": "API de rastreamento por CPF",
+      "scope": "collection",
+      "_type": "workspace"
+    },
+    {
+      "_id": "env_base",
+      "parentId": "wrk_correios_api",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8087",
+        "api_key": "dev-key-123"
+      },
+      "dataPropertyOrder": {
+        "&": ["base_url", "api_key"]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 1702414800000,
+      "_type": "environment"
+    },
+    {
+      "_id": "fld_tracker",
+      "parentId": "wrk_correios_api",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "name": "Tracker",
+      "description": "Endpoints de rastreamento",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1702414800000,
+      "_type": "request_group"
+    },
+    {
+      "_id": "fld_health",
+      "parentId": "wrk_correios_api",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "name": "Health",
+      "description": "Health check endpoints",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1702414700000,
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_health_check",
+      "parentId": "fld_health",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "url": "{{ _.base_url }}/health",
+      "name": "Health Check",
+      "description": "Verifica se a API está funcionando",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": -1702414800000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "req_track_cpf",
+      "parentId": "fld_tracker",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "url": "{{ _.base_url }}/api/v1/tracker/cpf",
+      "name": "Track CPF",
+      "description": "Rastreia encomenda por CPF",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"cpf\": \"34422182846\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_content_type"
+        },
+        {
+          "name": "X-API-Key",
+          "value": "{{ _.api_key }}",
+          "id": "pair_api_key"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1702414800000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "req_track_cpf_invalid_key",
+      "parentId": "fld_tracker",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "url": "{{ _.base_url }}/api/v1/tracker/cpf",
+      "name": "Track CPF (Invalid Key)",
+      "description": "Teste com API key inválida - deve retornar 401",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"cpf\": \"34422182846\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_content_type"
+        },
+        {
+          "name": "X-API-Key",
+          "value": "invalid-key",
+          "id": "pair_api_key"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1702414700000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "req_track_cpf_no_key",
+      "parentId": "fld_tracker",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "url": "{{ _.base_url }}/api/v1/tracker/cpf",
+      "name": "Track CPF (No Key)",
+      "description": "Teste sem API key - deve retornar 401",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"cpf\": \"34422182846\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_content_type"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1702414600000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "req_track_cpf_invalid_body",
+      "parentId": "fld_tracker",
+      "modified": 1702414800000,
+      "created": 1702414800000,
+      "url": "{{ _.base_url }}/api/v1/tracker/cpf",
+      "name": "Track CPF (Invalid Body)",
+      "description": "Teste com body inválido - deve retornar 400",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"invalid\": \"field\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_content_type"
+        },
+        {
+          "name": "X-API-Key",
+          "value": "{{ _.api_key }}",
+          "id": "pair_api_key"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1702414500000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    }
+  ]
+}
