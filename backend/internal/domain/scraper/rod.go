@@ -141,6 +141,40 @@ func (r *RodScraper) ensureBrowser() error {
 	return nil
 }
 
+func (r *RodScraper) reconnectBrowser() error {
+	r.browserMu.Lock()
+	defer r.browserMu.Unlock()
+
+	if r.browser != nil {
+		_ = r.browser.Close()
+		r.browser = nil
+	}
+
+	log.Println("Reconnecting to browser...")
+	browser, err := r.connectBrowser()
+	if err != nil {
+		return err
+	}
+	r.browser = browser
+	log.Println("Browser reconnected successfully")
+	return nil
+}
+
+func (r *RodScraper) getPage() (*rod.Page, error) {
+	r.browserMu.Lock()
+	defer r.browserMu.Unlock()
+
+	if r.browser == nil {
+		return nil, fmt.Errorf("browser not connected")
+	}
+
+	page, err := r.browser.Page(proto.TargetCreateTarget{URL: ""})
+	if err != nil {
+		return nil, err
+	}
+	return page, nil
+}
+
 func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 	r.semaphore <- struct{}{}
 	defer func() { <-r.semaphore }()
@@ -151,9 +185,17 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 		return nil, fmt.Errorf("failed to ensure browser: %w", err)
 	}
 
-	r.browserMu.Lock()
-	page := r.browser.MustPage()
-	r.browserMu.Unlock()
+	page, err := r.getPage()
+	if err != nil {
+		log.Printf("Failed to get page, attempting reconnect: %v", err)
+		if reconnErr := r.reconnectBrowser(); reconnErr != nil {
+			return nil, fmt.Errorf("failed to reconnect browser: %w", reconnErr)
+		}
+		page, err = r.getPage()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get page after reconnect: %w", err)
+		}
+	}
 
 	page.MustSetUserAgent(&proto.NetworkSetUserAgentOverride{
 		UserAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -165,14 +207,20 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 		}
 	}()
 
-	page.Timeout(60 * time.Second)
+	page = page.Timeout(60 * time.Second)
 
 	if err := page.Navigate("https://www.haga7digital.com.br/?page=rastreio"); err != nil {
+		if strings.Contains(err.Error(), "closed") {
+			log.Printf("Connection closed during navigate, triggering reconnect")
+			_ = r.reconnectBrowser()
+		}
 		return nil, fmt.Errorf("failed to navigate: %w", err)
 	}
 
 	log.Println("Page navigated, waiting for load...")
-	page.MustWaitLoad()
+	if err := page.WaitLoad(); err != nil {
+		return nil, fmt.Errorf("failed to wait for load: %w", err)
+	}
 	time.Sleep(3 * time.Second)
 
 	log.Println("Looking for CPF input...")
@@ -203,7 +251,9 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 		Events:    []TrackingEvent{},
 	}
 
-	page.MustWaitLoad()
+	if err := page.WaitLoad(); err != nil {
+		log.Printf("Warning: WaitLoad failed: %v", err)
+	}
 
 	pageText, err := page.Eval(`() => document.body.innerText`)
 	if err != nil {
