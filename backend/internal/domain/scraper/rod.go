@@ -128,9 +128,30 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 		if strings.Contains(line, "Objeto em transferência") ||
 			strings.Contains(line, "Objeto postado") ||
 			strings.Contains(line, "Objeto entregue") ||
+			strings.Contains(line, "Objeto não entregue") ||
 			strings.Contains(line, "Etiqueta emitida") ||
 			strings.Contains(line, "Objeto saiu") ||
-			strings.Contains(line, "Objeto recebido") {
+			strings.Contains(line, "Objeto recebido") ||
+			strings.Contains(line, "Objeto aguardando retirada") ||
+			strings.Contains(line, "Objeto devolvido") ||
+			strings.Contains(line, "Objeto encaminhado") ||
+			strings.Contains(line, "Objeto retido") ||
+			strings.Contains(line, "Objeto roubado") ||
+			strings.Contains(line, "Objeto extraviado") ||
+			strings.Contains(line, "Objeto avariado") ||
+			strings.Contains(line, "Fiscalização aduaneira") ||
+			strings.Contains(line, "Aguardando pagamento") ||
+			strings.Contains(line, "Pagamento confirmado") ||
+			strings.Contains(line, "Tentativa de entrega") ||
+			strings.Contains(line, "Saída para entrega") ||
+			strings.Contains(line, "Objeto coletado") ||
+			strings.Contains(line, "Coleta solicitada") ||
+			strings.Contains(line, "Logística reversa") ||
+			strings.Contains(line, "Destinatário ausente") ||
+			strings.Contains(line, "Endereço incorreto") ||
+			strings.Contains(line, "Endereço insuficiente") ||
+			strings.Contains(line, "Objeto em trânsito") ||
+			strings.Contains(line, "Objeto disponível") {
 			
 			if currentEvent.Description != "" {
 				result.Events = append(result.Events, currentEvent)
@@ -159,12 +180,31 @@ func (r *RodScraper) TrackCPF(cpf string) (*TrackingResult, error) {
 
 	if len(result.Events) > 0 {
 		firstEvent := result.Events[0]
-		if strings.Contains(firstEvent.Description, "entregue") {
+		desc := strings.ToLower(firstEvent.Description)
+		if strings.Contains(desc, "entregue ao destinatário") || strings.Contains(desc, "objeto entregue") {
 			result.Status = "entregue"
-		} else if strings.Contains(firstEvent.Description, "transferência") {
+		} else if strings.Contains(desc, "não entregue") || strings.Contains(desc, "destinatário ausente") {
+			result.Status = "tentativa de entrega"
+		} else if strings.Contains(desc, "saiu para entrega") || strings.Contains(desc, "saída para entrega") {
+			result.Status = "saiu para entrega"
+		} else if strings.Contains(desc, "aguardando retirada") {
+			result.Status = "aguardando retirada"
+		} else if strings.Contains(desc, "devolvido") {
+			result.Status = "devolvido"
+		} else if strings.Contains(desc, "retido") || strings.Contains(desc, "fiscalização") {
+			result.Status = "retido na fiscalização"
+		} else if strings.Contains(desc, "extraviado") || strings.Contains(desc, "roubado") {
+			result.Status = "extraviado"
+		} else if strings.Contains(desc, "avariado") {
+			result.Status = "avariado"
+		} else if strings.Contains(desc, "aguardando pagamento") {
+			result.Status = "aguardando pagamento"
+		} else if strings.Contains(desc, "transferência") || strings.Contains(desc, "trânsito") || strings.Contains(desc, "encaminhado") {
 			result.Status = "em trânsito"
-		} else if strings.Contains(firstEvent.Description, "postado") {
+		} else if strings.Contains(desc, "postado") || strings.Contains(desc, "coletado") {
 			result.Status = "postado"
+		} else if strings.Contains(desc, "etiqueta") {
+			result.Status = "etiqueta emitida"
 		} else {
 			result.Status = "em processamento"
 		}
